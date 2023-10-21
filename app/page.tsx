@@ -37,6 +37,7 @@ export default function Home() {
   const [zoom, setZoom] = useState(11);
   const [found, setFound] = useState<string[]>([]);
   const [initialized, setInitialized] = useState<boolean>(false);
+  const [footerCollapsed, setFooterCollapsed] = useState<boolean>(false);
 
   const updateFound = useCallback(() => {
     console.log("updateFound triggered", found);
@@ -209,33 +210,42 @@ export default function Home() {
           ref={attemptInput}
           onKeyUp={testStopAttempt}
           disabled={!initialized}
+          autoComplete="off"
         />
       </div>
       <div className="game">
         <div ref={mapContainer} className="map-container" />
       </div>
-      <footer className="routes">
-        {Object.keys(Routes).map((route) => (
-          <div key={route} className="route">
-            <Image
-              src={(Routes as any)[route].logo}
-              alt={(Routes as any)[route].name}
-              width={20}
-              height={20}
-              className="route-logo"
-            />
-            <p className="route-score">
-              {(
-                (100 *
-                  ((Routes as any)[route].stops as Array<string>).filter(
-                    (stop) => found.includes(stop)
-                  ).length) /
-                ((Routes as any)[route].stops as Array<string>).length
-              ).toFixed(2)}
-              %
-            </p>
-          </div>
-        ))}
+      <footer className={footerCollapsed ? "routes collapsed" : "routes"}>
+        <div className="collapse-btn">
+          {footerCollapsed ? (
+            <span onClick={() => setFooterCollapsed(false)}>...</span>
+          ) : (
+            <span onClick={() => setFooterCollapsed(true)}>-</span>
+          )}
+        </div>
+        {!footerCollapsed &&
+          Object.keys(Routes).map((route) => (
+            <div key={route} className="route">
+              <Image
+                src={(Routes as any)[route].logo}
+                alt={(Routes as any)[route].name}
+                width={20}
+                height={20}
+                className="route-logo"
+              />
+              <p className="route-score">
+                {(
+                  (100 *
+                    ((Routes as any)[route].stops as Array<string>).filter(
+                      (stop) => found.includes(stop)
+                    ).length) /
+                  ((Routes as any)[route].stops as Array<string>).length
+                ).toFixed(2)}
+                %
+              </p>
+            </div>
+          ))}
       </footer>
     </main>
   );

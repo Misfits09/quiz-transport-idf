@@ -87,6 +87,23 @@ footer.routes .route-score {
   text-align: center;
 }
 
+footer.routes.collapsed {
+  width: auto;
+  height: 50px;
+  left: 0;
+}
+
+footer.routes div.collapse-btn {
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border: 1px solid #000;
+  border-radius: 5px;
+}
+
 @media screen and (max-width: 768px) {
   :root {
     --header-size: 150px;
