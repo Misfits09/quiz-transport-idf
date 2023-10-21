@@ -1,27 +1,109 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
 :root {
-  --foreground-rgb: 0, 0, 0;
-  --background-start-rgb: 214, 219, 220;
-  --background-end-rgb: 255, 255, 255;
+  --header-size: 50px;
 }
 
-@media (prefers-color-scheme: dark) {
+.header {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: nowrap;
+  height: var(--header-size);
+  width: 100vw;
+  padding: 0 20px;
+  background-color: #000;
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+.header .title {
+  flex-grow: 1;
+  text-align: center;
+  color: #fff;
+}
+
+.header .score {
+  color: #fff;
+  margin: 5px;
+}
+
+.header input {
+  padding: 4px;
+  border-radius: 2px;
+}
+
+.header input[status="success"] {
+  background-color: greenyellow;
+}
+
+.header input[status="fail"] {
+  background-color: red;
+}
+
+.header input[status="alreadyFound"] {
+  background-color: orange;
+}
+
+.game {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  height: 100vh;
+  width: 100vw;
+  padding-top: var(--header-size);
+}
+
+.map-container {
+  height: 100%;
+  width: 100vw;
+  overflow: hidden;
+}
+
+footer.routes {
+  position: absolute;
+  width: calc(100vw - 20px);
+  height: auto;
+  bottom: 50px;
+  left: 10px;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  overflow: hidden;
+  gap: 10px;
+  justify-content: center;
+  background: #fff;
+  padding: 10px;
+  border-radius: 5px;
+}
+
+footer.routes .route-score {
+  font-size: 10px;
+  text-align: center;
+}
+
+@media screen and (max-width: 768px) {
   :root {
-    --foreground-rgb: 255, 255, 255;
-    --background-start-rgb: 0, 0, 0;
-    --background-end-rgb: 0, 0, 0;
+    --header-size: 150px;
   }
-}
+  .header {
+    flex-direction: column;
+    justify-content: center;
+  }
 
-body {
-  color: rgb(var(--foreground-rgb));
-  background: linear-gradient(
-      to bottom,
-      transparent,
-      rgb(var(--background-end-rgb))
-    )
-    rgb(var(--background-start-rgb));
+  .header .title {
+    flex-grow: 0;
+  }
+
+  footer.routes {
+    bottom: 0;
+    width: 100vw;
+    left: 0;
+    z-index: 100;
+  }
 }

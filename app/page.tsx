@@ -1,113 +1,242 @@
-import Image from 'next/image'
+"use client";
+
+import mapboxgl from "mapbox-gl";
+import {
+  useRef,
+  useState,
+  useEffect,
+  useCallback,
+  KeyboardEventHandler,
+  use,
+} from "react";
+
+import Routes from "./routes.json";
+import Stops from "./stops.json";
+import { features } from "process";
+import { Geometry, GeoJsonProperties, Feature } from "geojson";
+import Image from "next/image";
+
+mapboxgl.accessToken =
+  "pk.eyJ1IjoibWlzZml0czA5IiwiYSI6ImNsbzA3eWFqbzA4aWUyaW55ajF1cXNzeTMifQ.w-uskgDthj4HvLLg_sUO0Q";
+
+const normalize = (str: string) => {
+  return str
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replaceAll(" ", "")
+    .replaceAll("-", "");
+};
 
 export default function Home() {
-  return (
-    <main className="flex min-h-screen flex-col items-center justify-between p-24">
-      <div className="z-10 max-w-5xl w-full items-center justify-between font-mono text-sm lg:flex">
-        <p className="fixed left-0 top-0 flex w-full justify-center border-b border-gray-300 bg-gradient-to-b from-zinc-200 pb-6 pt-8 backdrop-blur-2xl dark:border-neutral-800 dark:bg-zinc-800/30 dark:from-inherit lg:static lg:w-auto  lg:rounded-xl lg:border lg:bg-gray-200 lg:p-4 lg:dark:bg-zinc-800/30">
-          Get started by editing&nbsp;
-          <code className="font-mono font-bold">app/page.tsx</code>
-        </p>
-        <div className="fixed bottom-0 left-0 flex h-48 w-full items-end justify-center bg-gradient-to-t from-white via-white dark:from-black dark:via-black lg:static lg:h-auto lg:w-auto lg:bg-none">
-          <a
-            className="pointer-events-none flex place-items-center gap-2 p-8 lg:pointer-events-auto lg:p-0"
-            href="https://vercel.com?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            By{' '}
-            <Image
-              src="/vercel.svg"
-              alt="Vercel Logo"
-              className="dark:invert"
-              width={100}
-              height={24}
-              priority
-            />
-          </a>
-        </div>
-      </div>
+  const mapContainer = useRef<HTMLDivElement>(null);
+  const map = useRef<mapboxgl.Map | null>(null);
+  const attemptInput = useRef<HTMLInputElement>(null);
+  const [lng, setLng] = useState(2.349014);
+  const [lat, setLat] = useState(48.864716);
+  const [zoom, setZoom] = useState(11);
+  const [found, setFound] = useState<string[]>([]);
+  const [initialized, setInitialized] = useState<boolean>(false);
 
-      <div className="relative flex place-items-center before:absolute before:h-[300px] before:w-[480px] before:-translate-x-1/2 before:rounded-full before:bg-gradient-radial before:from-white before:to-transparent before:blur-2xl before:content-[''] after:absolute after:-z-20 after:h-[180px] after:w-[240px] after:translate-x-1/3 after:bg-gradient-conic after:from-sky-200 after:via-blue-200 after:blur-2xl after:content-[''] before:dark:bg-gradient-to-br before:dark:from-transparent before:dark:to-blue-700 before:dark:opacity-10 after:dark:from-sky-900 after:dark:via-[#0141ff] after:dark:opacity-40 before:lg:h-[360px] z-[-1]">
-        <Image
-          className="relative dark:drop-shadow-[0_0_0.3rem_#ffffff70] dark:invert"
-          src="/next.svg"
-          alt="Next.js Logo"
-          width={180}
-          height={37}
-          priority
+  const updateFound = useCallback(() => {
+    console.log("updateFound triggered", found);
+    map.current?.setLayoutProperty("stops", "text-field", [
+      "case",
+      ["in", ["get", "id"], ["literal", found]],
+      ["get", "name"],
+      "",
+    ]);
+  }, [map, found]);
+
+  const testStopAttempt = useCallback<KeyboardEventHandler<HTMLInputElement>>(
+    (e) => {
+      if (attemptInput.current === null) return;
+      if (attemptInput.current.value === "") return;
+
+      if (e.key !== "Enter") {
+        return;
+      }
+
+      const stop_name_attempt = normalize(attemptInput.current.value);
+      const match = Object.keys(Stops).find(
+        (stop) => normalize(stop) === stop_name_attempt
+      );
+
+      if (match === undefined) {
+        attemptInput.current.setAttribute("status", "fail");
+        return;
+      }
+      const matchedId = (Stops as any)[match].id;
+      if (found.includes(matchedId)) {
+        // already found
+        attemptInput.current.value = "";
+        attemptInput.current.setAttribute("status", "alreadyFound");
+        return;
+      }
+
+      attemptInput.current.setAttribute("status", "success");
+      attemptInput.current.value = "";
+      setFound([...found, matchedId]);
+    },
+    [map, found, setFound]
+  );
+
+  useEffect(() => {
+    if (map.current === null || !map.current.loaded()) return;
+    updateFound();
+  }, [found, updateFound, map]);
+
+  useEffect(() => {
+    if (found.length === 0) return;
+    localStorage.setItem("found", JSON.stringify(found));
+  }, [found]);
+
+  useEffect(() => {
+    if (map.current) return; // initialize map only once
+    map.current = new mapboxgl.Map({
+      container: mapContainer.current ?? "",
+      style: "mapbox://styles/misfits09/clo099i7p00ci01r27vm91puo",
+      center: [lng, lat],
+      zoom: zoom,
+    });
+    map.current.on("load", () => {
+      Object.keys(Routes).forEach((route) => {
+        map.current?.addSource(route, {
+          type: "geojson",
+          data: (Routes as any)[route].shape as string,
+        });
+        map.current?.addLayer({
+          id: route,
+          type: "line",
+          source: route,
+          layout: {
+            "line-join": "round",
+            "line-cap": "round",
+          },
+          paint: {
+            "line-color": ("#" + (Routes as any)[route].color) as string,
+            "line-width": 2,
+          },
+        });
+      });
+
+      const features: Array<Feature<Geometry, GeoJsonProperties>> = [];
+      Object.keys(Stops).forEach((stop_name) => {
+        const stop_data = (Stops as any)[stop_name] as any;
+        features.push({
+          type: "Feature",
+          geometry: {
+            type: "Point",
+            coordinates: stop_data.coords,
+          },
+          properties: {
+            name: stop_name,
+            id: stop_data.id,
+          },
+        });
+      });
+      map.current?.addSource("stops", {
+        type: "geojson",
+        data: {
+          type: "FeatureCollection",
+          features: features,
+        },
+      });
+
+      let foundLocal: string[] | null = null;
+      const foundString = localStorage.getItem("found");
+      if (foundString !== null) {
+        const foundFromStorage = JSON.parse(foundString) as string[];
+        if (
+          foundFromStorage.length > 0 &&
+          confirm("Souhaitez vous reprendre la partie en cours ?")
+        ) {
+          foundLocal = foundFromStorage;
+        }
+        localStorage.removeItem("found");
+      }
+
+      map.current?.loadImage("/dot.png", (error, image) => {
+        if (error) throw error;
+        if (image === undefined) throw new Error("image is undefined");
+        map.current?.addImage("stop-dot", image);
+        map.current?.addLayer({
+          id: "stops",
+          type: "symbol",
+          source: "stops", // reference the data source
+          paint: {
+            "text-halo-color": "#fff",
+            "text-halo-width": 2,
+          },
+          layout: {
+            "text-field": [
+              "case",
+              ["in", ["get", "id"], ["literal", foundLocal ?? found]],
+              ["get", "name"],
+              "",
+            ],
+            "text-size": ["interpolate", ["linear"], ["zoom"], 14, 10, 15, 14],
+            "text-offset": [0, 1],
+            "icon-image": "stop-dot", // reference the image
+            "icon-size": [
+              "interpolate",
+              ["linear"],
+              ["zoom"],
+              14,
+              0.015,
+              15,
+              0.03,
+            ],
+          },
+        });
+      });
+
+      if (foundLocal != null) setFound(foundLocal);
+      setInitialized(true);
+    });
+  });
+
+  return (
+    <main className="flex flex-col items-center justify-between">
+      <div className="header">
+        <h1 className="title">Quiz - Les transports en île de france</h1>
+        <p className="score">
+          {((100 * found.length) / Object.keys(Stops).length).toFixed(2)}%
+        </p>
+        <input
+          placeholder="Proposition..."
+          type="text"
+          ref={attemptInput}
+          onKeyUp={testStopAttempt}
+          disabled={!initialized}
         />
       </div>
-
-      <div className="mb-32 grid text-center lg:max-w-5xl lg:w-full lg:mb-0 lg:grid-cols-4 lg:text-left">
-        <a
-          href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Docs{' '}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Find in-depth information about Next.js features and API.
-          </p>
-        </a>
-
-        <a
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Learn{' '}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Learn about Next.js in an interactive course with&nbsp;quizzes!
-          </p>
-        </a>
-
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Templates{' '}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Explore the Next.js 13 playground.
-          </p>
-        </a>
-
-        <a
-          href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Deploy{' '}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Instantly deploy your Next.js site to a shareable URL with Vercel.
-          </p>
-        </a>
+      <div className="game">
+        <div ref={mapContainer} className="map-container" />
       </div>
+      <footer className="routes">
+        {Object.keys(Routes).map((route) => (
+          <div key={route} className="route">
+            <Image
+              src={(Routes as any)[route].logo}
+              alt={(Routes as any)[route].name}
+              width={20}
+              height={20}
+              className="route-logo"
+            />
+            <p className="route-score">
+              {(
+                (100 *
+                  ((Routes as any)[route].stops as Array<string>).filter(
+                    (stop) => found.includes(stop)
+                  ).length) /
+                ((Routes as any)[route].stops as Array<string>).length
+              ).toFixed(2)}
+              %
+            </p>
+          </div>
+        ))}
+      </footer>
     </main>
-  )
+  );
 }
