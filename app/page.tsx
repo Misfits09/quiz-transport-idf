@@ -7,14 +7,16 @@ import {
   useEffect,
   useCallback,
   KeyboardEventHandler,
-  use,
 } from "react";
 
 import Routes from "./routes.json";
 import Stops from "./stops.json";
-import { features } from "process";
 import { Geometry, GeoJsonProperties, Feature } from "geojson";
 import Image from "next/image";
+import { CgArrowsExpandUpRight, CgArrowsExpandDownLeft } from "react-icons/cg";
+import { AiFillCheckCircle } from "react-icons/ai";
+
+// import ConfettiExplosion from "react-confetti-explosion";
 
 mapboxgl.accessToken =
   "pk.eyJ1IjoibWlzZml0czA5IiwiYSI6ImNsbzA3eWFqbzA4aWUyaW55ajF1cXNzeTMifQ.w-uskgDthj4HvLLg_sUO0Q";
@@ -40,7 +42,6 @@ export default function Home() {
   const [footerCollapsed, setFooterCollapsed] = useState<boolean>(false);
 
   const updateFound = useCallback(() => {
-    console.log("updateFound triggered", found);
     map.current?.setLayoutProperty("stops", "text-field", [
       "case",
       ["in", ["get", "id"], ["literal", found]],
@@ -217,16 +218,32 @@ export default function Home() {
         <div ref={mapContainer} className="map-container" />
       </div>
       <footer className={footerCollapsed ? "routes collapsed" : "routes"}>
-        <div className="collapse-btn">
+        <div
+          className="collapse-btn"
+          onClick={() => setFooterCollapsed(!footerCollapsed)}
+        >
           {footerCollapsed ? (
-            <span onClick={() => setFooterCollapsed(false)}>...</span>
+            <span>
+              <CgArrowsExpandUpRight />
+            </span>
           ) : (
-            <span onClick={() => setFooterCollapsed(true)}>-</span>
+            <span>
+              <CgArrowsExpandDownLeft />
+            </span>
           )}
         </div>
-        {!footerCollapsed &&
-          Object.keys(Routes).map((route) => (
-            <div key={route} className="route">
+        {Object.keys(Routes).map((route) => {
+          const foundStops = (
+            (Routes as any)[route].stops as Array<string>
+          ).filter((stop) => found.includes(stop)).length;
+          const totalStops = ((Routes as any)[route].stops as Array<string>)
+            .length;
+
+          return (
+            <div
+              key={route}
+              className={foundStops == totalStops ? "route complete" : "route"}
+            >
               <Image
                 src={(Routes as any)[route].logo}
                 alt={(Routes as any)[route].name}
@@ -234,18 +251,20 @@ export default function Home() {
                 height={20}
                 className="route-logo"
               />
-              <p className="route-score">
-                {(
-                  (100 *
-                    ((Routes as any)[route].stops as Array<string>).filter(
-                      (stop) => found.includes(stop)
-                    ).length) /
-                  ((Routes as any)[route].stops as Array<string>).length
-                ).toFixed(2)}
-                %
-              </p>
+              {foundStops < totalStops ? (
+                <p className="route-score">
+                  {((100 * foundStops) / totalStops).toFixed(0)}%
+                </p>
+              ) : (
+                <div className="check">
+                  <AiFillCheckCircle
+                    style={{ color: "#0d0", height: "100%", width: "100%" }}
+                  />
+                </div>
+              )}
             </div>
-          ))}
+          );
+        })}
       </footer>
     </main>
   );

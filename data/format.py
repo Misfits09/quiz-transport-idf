@@ -9,6 +9,7 @@ allowed_routes = [
 routes = dict()
 
 # Read traces-des-lignes-de-transport-en-commun-idfm.csv
+# Creates all routes with their name, type, color
 
 data = open("./traces-des-lignes-de-transport-en-commun-idfm.csv", "r")
 csv_reader = csv.reader(data, delimiter=";")
@@ -29,13 +30,14 @@ for line in csv_reader:
         "name": line[1],
         "type": line[3],
         "color": line[4],
-        "stops": {},
+        "stops": set(),
         "shape": {
             "coordinates": [],
             "type": "MultiLineString",
         }
     }
 
+# Fix routes shape from traces-du-reseau-ferre-idf.csv
 
 data = open("./traces-du-reseau-ferre-idf.csv", "r")
 csv_reader = csv.reader(data, delimiter=";")
@@ -52,41 +54,32 @@ for line in csv_reader:
     routes["IDFM:" + line[3]]["shape"]["coordinates"].append(segment_data["coordinates"])
     routes["IDFM:" + line[3]]["logo"] = line[-1]
 
-data = open("./arrets-lignes.csv", "r")
+# Add stops to routes from arrets-lignes.csv
 
-# Read csv file
+data = open("./arrets-lignes.csv", "r")
 csv_reader = csv.reader(data, delimiter=";")
 csv_reader.__next__() # Skip first line
 
+stops = dict()
+
 for line in csv_reader:
     if line[0] in routes:
-        # if line[5] in routes[line[0]]["stops"]:
-        #     print("WARN: Duplicate stop %s for route %s" % (line[5], line[1]))
-
-        routes[line[0]]["stops"][line[5]] = dict({
-            "id": line[4],
-            "coords": (line[6], line[7])
-        })
-
-stops_routes = dict()
-for route in routes:
-    for stop in routes[route]["stops"]:
-        if stop in stops_routes:
-            stops_routes[stop]["routes"].append(route)
+        if line[5] in stops:
+            stops[line[5]]["routes"].append(line[0])
         else:
-            stops_routes[stop] = {
-                "coords": routes[route]["stops"][stop]["coords"],
-                "id": routes[route]["stops"][stop]["id"],
-                "routes": [route],
+            stops[line[5]] = {
+                "coords": (line[6], line[7]),
+                "id": line[4],
+                "routes": [line[0]],
             }
+        
+        routes[line[0]]["stops"].add(stops[line[5]]["id"])
 
 with open("../app/stops.json", "w") as f:
-    f.write(json.dumps(stops_routes))
+    f.write(json.dumps(stops))
 
 for route in routes:
-    routes[route]["stops"] = [
-        routes[route]["stops"][stop]["id"] for stop in routes[route]["stops"]
-    ]
+    routes[route]["stops"] = list(routes[route]["stops"])
 
 # Write to file
 with open("../app/routes.json", "w") as f:
