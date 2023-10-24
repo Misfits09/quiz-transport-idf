@@ -30,6 +30,10 @@ const normalize = (str: string) => {
     .replaceAll("-", "");
 };
 
+const REGEX_METRO = /^[0-9]+[A-Z]?$/;
+const REGEX_TRAM = /^T[0-9]+[a-z]?$/;
+const REGEX_TRAIN = /^[A-Z]+$/;
+
 const IDF_COORDS: [number, number] = [2.349014, 48.864716];
 const IDF_ZOOM = 11;
 
@@ -100,9 +104,6 @@ export default function Home() {
       style: "mapbox://styles/misfits09/clo099i7p00ci01r27vm91puo",
       center: IDF_COORDS,
       zoom: IDF_ZOOM,
-    });
-    map.current.on("mousemove", (e) => {
-      console.log("POS: " + JSON.stringify(e.lngLat.wrap()));
     });
     map.current.on("load", () => {
       Object.keys(Routes).forEach((route) => {
@@ -262,39 +263,68 @@ export default function Home() {
             </span>
           )}
         </div>
-        {Object.keys(Routes).map((route) => {
-          const foundStops = (
-            (Routes as any)[route].stops as Array<string>
-          ).filter((stop) => found.includes(stop)).length;
-          const totalStops = ((Routes as any)[route].stops as Array<string>)
-            .length;
+        {Object.keys(Routes)
+          .sort((a, b) => {
+            const nameA = (Routes as any)[a].name as string;
+            const nameB = (Routes as any)[b].name as string;
 
-          return (
-            <div
-              key={route}
-              className={foundStops == totalStops ? "route complete" : "route"}
-            >
-              <Image
-                src={(Routes as any)[route].logo}
-                alt={(Routes as any)[route].name}
-                width={20}
-                height={20}
-                className="route-logo"
-              />
-              {foundStops < totalStops ? (
-                <p className="route-score">
-                  {((100 * foundStops) / totalStops).toFixed(0)}%
-                </p>
-              ) : (
-                <div className="check">
-                  <AiFillCheckCircle
-                    style={{ color: "#0d0", height: "100%", width: "100%" }}
-                  />
-                </div>
-              )}
-            </div>
-          );
-        })}
+            if (REGEX_METRO.test(nameA) && !REGEX_METRO.test(nameB)) return -1;
+            if (!REGEX_METRO.test(nameA) && REGEX_METRO.test(nameB)) return 1;
+            if (REGEX_METRO.test(nameA) && REGEX_METRO.test(nameB))
+              return parseInt(nameA) - parseInt(nameB);
+
+            // Neither are metro
+            if (REGEX_TRAM.test(nameA) && !REGEX_TRAM.test(nameB)) return -1;
+            if (!REGEX_TRAM.test(nameA) && REGEX_TRAM.test(nameB)) return 1;
+            if (REGEX_TRAM.test(nameA) && REGEX_TRAM.test(nameB))
+              return (
+                parseInt(nameA.substring(1)) - parseInt(nameB.substring(1))
+              );
+
+            // Neither are tram
+            if (REGEX_TRAIN.test(nameA) && !REGEX_TRAIN.test(nameB)) return -1;
+            if (!REGEX_TRAIN.test(nameA) && REGEX_TRAIN.test(nameB)) return 1;
+            if (REGEX_TRAIN.test(nameA) && REGEX_TRAIN.test(nameB))
+              return nameA.localeCompare(nameB);
+
+            // Neither are train
+            return nameA.localeCompare(nameB);
+          })
+          .map((route) => {
+            const foundStops = (
+              (Routes as any)[route].stops as Array<string>
+            ).filter((stop) => found.includes(stop)).length;
+            const totalStops = ((Routes as any)[route].stops as Array<string>)
+              .length;
+
+            return (
+              <div
+                key={route}
+                className={
+                  foundStops == totalStops ? "route complete" : "route"
+                }
+              >
+                <Image
+                  src={(Routes as any)[route].logo}
+                  alt={(Routes as any)[route].name}
+                  width={20}
+                  height={20}
+                  className="route-logo"
+                />
+                {foundStops < totalStops ? (
+                  <p className="route-score">
+                    {((100 * foundStops) / totalStops).toFixed(0)}%
+                  </p>
+                ) : (
+                  <div className="check">
+                    <AiFillCheckCircle
+                      style={{ color: "#0d0", height: "100%", width: "100%" }}
+                    />
+                  </div>
+                )}
+              </div>
+            );
+          })}
       </footer>
     </main>
   );
