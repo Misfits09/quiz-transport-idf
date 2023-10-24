@@ -30,13 +30,13 @@ const normalize = (str: string) => {
     .replaceAll("-", "");
 };
 
+const IDF_COORDS: [number, number] = [2.349014, 48.864716];
+const IDF_ZOOM = 11;
+
 export default function Home() {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const attemptInput = useRef<HTMLInputElement>(null);
-  const [lng, setLng] = useState(2.349014);
-  const [lat, setLat] = useState(48.864716);
-  const [zoom, setZoom] = useState(11);
   const [found, setFound] = useState<string[]>([]);
   const [initialized, setInitialized] = useState<boolean>(false);
   const [footerCollapsed, setFooterCollapsed] = useState<boolean>(false);
@@ -98,8 +98,11 @@ export default function Home() {
     map.current = new mapboxgl.Map({
       container: mapContainer.current ?? "",
       style: "mapbox://styles/misfits09/clo099i7p00ci01r27vm91puo",
-      center: [lng, lat],
-      zoom: zoom,
+      center: IDF_COORDS,
+      zoom: IDF_ZOOM,
+    });
+    map.current.on("mousemove", (e) => {
+      console.log("POS: " + JSON.stringify(e.lngLat.wrap()));
     });
     map.current.on("load", () => {
       Object.keys(Routes).forEach((route) => {
@@ -117,7 +120,7 @@ export default function Home() {
           },
           paint: {
             "line-color": ("#" + (Routes as any)[route].color) as string,
-            "line-width": 2,
+            "line-width": 3,
           },
         });
       });
@@ -125,16 +128,19 @@ export default function Home() {
       const features: Array<Feature<Geometry, GeoJsonProperties>> = [];
       Object.keys(Stops).forEach((stop_name) => {
         const stop_data = (Stops as any)[stop_name] as any;
-        features.push({
-          type: "Feature",
-          geometry: {
-            type: "Point",
-            coordinates: stop_data.coords,
-          },
-          properties: {
-            name: stop_name,
-            id: stop_data.id,
-          },
+        stop_data.coords.forEach((point: number[]) => {
+          features.push({
+            type: "Feature",
+            geometry: {
+              type: "Point",
+              coordinates: [point[0], point[1]],
+            },
+            properties: {
+              name: stop_name,
+              id: stop_data.id,
+              color: point[2],
+            },
+          });
         });
       });
       map.current?.addSource("stops", {
@@ -158,6 +164,22 @@ export default function Home() {
         localStorage.removeItem("found");
       }
 
+      const colorsLoaded: string[] = [];
+      Object.values(Routes).forEach((route: any) => {
+        if (colorsLoaded.includes(route.color)) {
+          return;
+        }
+        colorsLoaded.push(route.color);
+        map.current?.loadImage(
+          `/dots/dot-${route.color}.png`,
+          (error, image) => {
+            if (error) throw error;
+            if (image === undefined) throw new Error("image is undefined");
+            map.current?.addImage(`stop-dot-${route.color}`, image);
+          }
+        );
+      });
+
       map.current?.loadImage("/dot.png", (error, image) => {
         if (error) throw error;
         if (image === undefined) throw new Error("image is undefined");
@@ -168,7 +190,7 @@ export default function Home() {
           source: "stops", // reference the data source
           paint: {
             "text-halo-color": "#fff",
-            "text-halo-width": 2,
+            "text-halo-width": 1,
           },
           layout: {
             "text-field": [
@@ -179,7 +201,15 @@ export default function Home() {
             ],
             "text-size": ["interpolate", ["linear"], ["zoom"], 14, 10, 15, 14],
             "text-offset": [0, 1],
-            "icon-image": "stop-dot", // reference the image
+            "icon-image": [
+              "case",
+              ["in", ["get", "id"], ["literal", foundLocal ?? found]],
+              ["concat", "stop-dot-", ["get", "color"]],
+              "stop-dot",
+            ], // reference the image
+            "icon-allow-overlap": true,
+            "icon-ignore-placement": true,
+            "text-optional": true,
             "icon-size": [
               "interpolate",
               ["linear"],
